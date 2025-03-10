@@ -4,6 +4,7 @@ from views.poste_competence_view import afficher_postes
 from views.alerte_view import afficher_alertes
 from views.emplacement_view import afficher_emplacements
 from views.evenement_view import afficher_evenements
+from views.badge_view import afficher_badges  # Ajout de la vue des badges
 
 # Menu principal
 def main():
@@ -15,6 +16,7 @@ def main():
         print("4️⃣ - Afficher les alertes")
         print("5️⃣ - Afficher les emplacements")
         print("6️⃣ - Afficher les événements")
+        print("7️⃣ - Afficher les badges")  # Option pour afficher les badges
         print("0️⃣ - Quitter")
 
         choix = input("Choisissez une option : ")
@@ -31,6 +33,8 @@ def main():
             afficher_emplacements()
         elif choix == "6":
             afficher_evenements()
+        elif choix == "7":  # Afficher les badges
+            afficher_badges()
         elif choix == "0":
             print("👋 Au revoir !")
             break

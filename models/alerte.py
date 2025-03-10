@@ -6,6 +6,7 @@ Base = declarative_base()
 
 class Alerte(Base):
     __tablename__ = "Alerte"
+    
     id_alerte = Column(Integer, primary_key=True)
     message = Column(Text, nullable=False)
 

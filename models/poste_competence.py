@@ -6,6 +6,7 @@ Base = declarative_base()
 
 class PosteCompetence(Base):
     __tablename__ = "Poste_Competence"
+    
     id_poste = Column(Integer, primary_key=True)
     nom_poste = Column(String(50), nullable=False)
     competence = Column(String(50), nullable=False)

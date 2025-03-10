@@ -4,3 +4,4 @@ from models.poste_competence import PosteCompetence
 from models.alerte import Alerte
 from models.emplacement import Emplacement
 from models.evenement import Evenement
+from models.badge import Badge  
