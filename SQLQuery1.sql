@@ -85,7 +85,7 @@ INSERT INTO Badge (uid_badge, id_employe)
 VALUES 
     ('63F5B428', 1),  -- Badge 1 attribué à l'employé 1
     ('C5D5963F', 2),  -- Badge 2 attribué à l'employé 2
-    ('4A19044B', 3),  -- Badge 3 attribué à l'employé 3
+    ('4A1944B', 3),  -- Badge 3 attribué à l'employé 3
     ('F1A3707B', 4),  -- Badge 4 attribué à l'employé 4
     ('B38838DA', NULL);  -- Badge anonyme, pas d'employé attribué (id_employe NULL)
 -- Insérer des postes avec compétences
