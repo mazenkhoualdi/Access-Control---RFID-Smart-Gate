@@ -35,7 +35,7 @@ CREATE TABLE Poste_Competence (
 -- Table des alertes --
 CREATE TABLE Alerte (
     id_alerte INT PRIMARY KEY IDENTITY(1,1),
-    message TEXT NOT NULL
+    message VARCHAR(255) NOT NULL
 );
 
 -- Table des emplacements --
@@ -54,7 +54,7 @@ CREATE TABLE Evenement (
     id_poste INT NOT NULL,
     id_alerte INT NULL, -- Peut être NULL si aucun problème
     id_emplacement INT NOT NULL,
-    date_entree DATETIME NOT NULL,
+    date_entree DATETIME  NULL,
     date_sortie DATETIME NULL,
     -- Clés étrangères
     FOREIGN KEY (id_employe) REFERENCES Employe(id_employe) ON DELETE SET NULL,
@@ -85,9 +85,9 @@ INSERT INTO Badge (uid_badge, id_employe)
 VALUES 
     ('63F5B428', 1),  -- Badge 1 attribué à l'employé 1
     ('C5D5963F', 2),  -- Badge 2 attribué à l'employé 2
-    ('4A1944B', 3),  -- Badge 3 attribué à l'employé 3
+    ('4A19044B', 3),  -- Badge 3 attribué à l'employé 3
     ('F1A3707B', 4),  -- Badge 4 attribué à l'employé 4
-    ('B38838DA', NULL);  -- Badge anonyme, pas d'employé attribué (id_employe NULL)
+    ('B38838DA', 7);  -- Badge anonyme, pas d'employé attribué (id_employe NULL)
 -- Insérer des postes avec compétences
 INSERT INTO Poste_Competence (nom_poste, competence, etoiles)
 VALUES 
@@ -112,3 +112,15 @@ VALUES
     ('Badge non attribué à un employé valide'),
     ('Accès accordé - Bienvenue !'),
     ('Accès autorisé - Compétence validée');
+
+
+
+	-- 🔹 Insérer une équipe anonyme
+INSERT INTO Equipe (nom_equipe) 
+VALUES ('Équipe Anonyme');
+INSERT INTO Employe (nom_employe, prenom_employe, id_equipe, competence)
+VALUES ('Anonyme', 'Employe', (SELECT id_equipe FROM Equipe WHERE nom_equipe = 'Équipe Anonyme'), 'Inconnu');
+INSERT INTO Poste_Competence (nom_poste, competence, etoiles)
+VALUES ('Poste Anonyme', 'Inconnu', 1);
+INSERT INTO Emplacement (nom_emplacement, type_emplacement)
+VALUES ('Emplacement Inconnu', 'Inconnu');
