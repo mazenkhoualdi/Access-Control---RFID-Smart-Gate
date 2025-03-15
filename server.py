@@ -179,6 +179,46 @@ def handle_event():
                     ).scalar():  # Seulement si l'accès est autorisé
                         print("✅ Accès autorisé, vérification de l'équipe et du retard...")
 
+                        # Vérifier si l'employé a déjà badgé dans RFID2 (pour mettre à jour la date_sortie)
+                        badge_rfid2_query = text("""
+                            SELECT id_event FROM Evenement
+                            WHERE id_badge = :id_badge AND date_entree IS NOT NULL AND date_sortie IS NULL
+                        """)
+                        badge_rfid2_result = conn.execute(badge_rfid2_query, {"id_badge": id_badge}).fetchone()
+
+                        if badge_rfid2_result:
+                            # Récupérer la compétence de l'employé
+                            competence_employe_query = text("""
+                                SELECT competence FROM Employe WHERE id_employe = :id_employe
+                            """)
+                            competence_employe = conn.execute(competence_employe_query, {"id_employe": id_employe}).scalar()
+
+                            # Récupérer la compétence associée à l'id_poste fixé sur RFID2
+                            id_poste_rfid2 = 2  # ID du poste fixé sur RFID2
+                            competence_poste_query = text("""
+                                SELECT competence FROM Poste_Competence WHERE id_poste = :id_poste
+                            """)
+                            competence_poste = conn.execute(competence_poste_query, {"id_poste": id_poste_rfid2}).scalar()
+
+                            # Vérifier si la compétence de l'employé correspond à celle du poste RFID2
+                            if competence_employe.strip().lower() == competence_poste.strip().lower():
+                                # Si la compétence correspond, mettre à jour la date_sortie
+                                update_sortie_query = text("""
+                                    UPDATE Evenement
+                                    SET date_sortie = :date_sortie
+                                    WHERE id_badge = :id_badge AND date_entree IS NOT NULL AND date_sortie IS NULL
+                                """)
+                                conn.execute(update_sortie_query, {
+                                    "date_sortie": datetime.now(),
+                                    "id_badge": id_badge
+                                })
+                                print("✅ Date de sortie mise à jour dans la table Evenement")
+                                return jsonify({"message": "✅ Date de sortie mise à jour avec succès"}), 201
+                            else:
+                                # Si la compétence ne correspond pas, renvoyer une erreur
+                                print("❌ Compétence non correspondante, date_sortie non mise à jour")
+                                return jsonify({"message": "❌ Compétence non correspondante, date_sortie non mise à jour"}), 403
+
                         # Vérifier si l'employé a déjà badgé dans RFID1
                         badge_rfid1_query = text("""
                             SELECT id_event FROM Evenement
