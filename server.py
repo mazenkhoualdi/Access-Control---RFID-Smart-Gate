@@ -172,7 +172,7 @@ def handle_event():
                     })
                     print("✅ Insertion dans la table Evenement réussie (RFID1)")  # Log de l'insertion réussie
                 elif rfid_reader == 2:
-                    # RFID2 : Mise à jour de date_entree, id_emplacement et id_equipe uniquement pour les UID autorisés
+                    # RFID2 : Mise à jour de date_entree, id_emplacement, id_equipe et id_poste
                     if id_alerte == conn.execute(
                         text("SELECT id_alerte FROM Alerte WHERE message = :message"),
                         {"message": "Accès accordé - Bienvenue !"}
@@ -183,6 +183,24 @@ def handle_event():
                         equipe_query = text("SELECT id_equipe FROM Employe WHERE id_employe = :id_employe")
                         id_equipe_employe = conn.execute(equipe_query, {"id_employe": id_employe}).scalar()
                         print(f"ID équipe employé : {id_equipe_employe}")
+
+                        # Récupérer la compétence de l'employé
+                        competence_query = text("SELECT competence FROM Employe WHERE id_employe = :id_employe")
+                        competence_employe = conn.execute(competence_query, {"id_employe": id_employe}).scalar()
+                        print(f"Compétence de l'employé : {competence_employe}")
+
+                        # Récupérer la compétence associée à l'id_poste 2
+                        competence_poste_2_query = text("SELECT competence FROM Poste_Competence WHERE id_poste = 2")
+                        competence_poste_2 = conn.execute(competence_poste_2_query).scalar()
+                        print(f"Compétence requise pour id_poste 2 : {competence_poste_2}")
+
+                        # Vérifier si la compétence de l'employé correspond à celle de l'id_poste 2
+                        if competence_employe.strip().lower() == competence_poste_2.strip().lower():
+                            id_poste = 2  # Mettre à jour l'id_poste à 2
+                            print("✅ Compétence correspondante, id_poste mis à jour à 2")
+                        else:
+                            id_poste = 6  # Conserver l'id_poste à 6 (Poste Anonyme)
+                            print("❌ Compétence non correspondante, id_poste reste à 6")
 
                         # Vérifier si l'employé est dans son intervalle d'équipe
                         heure_actuelle = datetime.now().time()
@@ -221,6 +239,7 @@ def handle_event():
                             SET date_entree = :date_entree,
                                 id_emplacement = :id_emplacement,
                                 id_equipe = :id_equipe,
+                                id_poste = :id_poste,
                                 id_alerte = :id_alerte
                             WHERE id_badge = :id_badge AND date_entree IS NULL
                         """)
@@ -228,10 +247,11 @@ def handle_event():
                             "date_entree": datetime.now(),
                             "id_emplacement": ID_EMPLACEMENT_RFID2,  # Utiliser l'ID d'emplacement fixe
                             "id_equipe": id_equipe_employe,  # Utiliser l'ID d'équipe de l'employé
+                            "id_poste": id_poste,  # Mettre à jour l'id_poste (2 ou 6)
                             "id_alerte": id_alerte,  # Mettre à jour l'alerte (retard ou accès accordé)
                             "id_badge": id_badge
                         })
-                        print(f"✅ Mise à jour de la table Evenement avec id_alerte = {id_alerte}")  # Log de la mise à jour réussie
+                        print(f"✅ Mise à jour de la table Evenement avec id_poste = {id_poste} et id_alerte = {id_alerte}")  # Log de la mise à jour réussie
                     else:
                         print("❌ Badge non autorisé, mise à jour ignorée")
 

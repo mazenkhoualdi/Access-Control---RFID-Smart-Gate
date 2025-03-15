@@ -75,11 +75,11 @@ VALUES
 	-- Insérer des employés
 INSERT INTO Employe (nom_employe, prenom_employe, id_equipe, competence)
 VALUES 
-    ('Doe', 'John', 1, 'Développeur'), 
-    ('Smith', 'Jane', 2, 'Technicien'),
-    ('Brown', 'Alex', 3, 'Manager'),
-    ('Taylor', 'Sam', 1, 'Administrateur'),
-    ('Miller', 'Chris', 2, 'Technicien');  -- Employé pour la deuxième équipe
+    ('Doe', 'John', 1, 'Développement logiciel'), 
+    ('Smith', 'Jane', 2, 'Maintenance système'),
+    ('Brown', 'Alex', 3, 'Gestion de projet'),
+    ('Taylor', 'Sam', 1, 'Gestion de réseau'),
+    ('Miller', 'Chris', 2, 'Maintenance système');  -- Employé pour la deuxième équipe
 	-- Insérer des badges attribués aux employés
 INSERT INTO Badge (uid_badge, id_employe)
 VALUES 
