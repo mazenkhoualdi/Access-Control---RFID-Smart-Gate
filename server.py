@@ -179,6 +179,22 @@ def handle_event():
                     ).scalar():  # Seulement si l'accès est autorisé
                         print("✅ Accès autorisé, vérification de l'équipe et du retard...")
 
+                        # Vérifier si l'employé a déjà badgé dans RFID1
+                        badge_rfid1_query = text("""
+                            SELECT id_event FROM Evenement
+                            WHERE id_badge = :id_badge AND date_entree IS NULL
+                        """)
+                        badge_rfid1_result = conn.execute(badge_rfid1_query, {"id_badge": id_badge}).fetchone()
+
+                        if not badge_rfid1_result:
+                            # Si l'employé n'a pas badgé dans RFID1, refuser l'accès
+                            id_alerte = conn.execute(
+                                text("SELECT id_alerte FROM Alerte WHERE message = :message"),
+                                {"message": "Accès refusé - Badgeage RFID1 manquant"}
+                            ).scalar()
+                            print("❌ Accès refusé : l'employé n'a pas badgé dans RFID1")
+                            return jsonify({"message": "❌ Accès refusé : vous devez d'abord badger dans RFID1"}), 403
+
                         # Récupérer l'équipe de l'employé
                         equipe_query = text("SELECT id_equipe FROM Employe WHERE id_employe = :id_employe")
                         id_equipe_employe = conn.execute(equipe_query, {"id_employe": id_employe}).scalar()
