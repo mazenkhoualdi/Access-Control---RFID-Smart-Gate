@@ -73,7 +73,7 @@ def handle_event():
     data = request.get_json()
     if not data:
         print("❌ Aucune donnée reçue")
-        return jsonify({"message": "❌ Aucune donnée reçue"}), 400
+        return jsonify({"message": "Pas de donnees"}), 400
 
     print(f"Données reçues : {data}")  # Log des données reçues
 
@@ -83,7 +83,7 @@ def handle_event():
 
     if not uid_badge or not rfid_reader:
         print("❌ UID ou lecteur RFID manquant")
-        return jsonify({"message": "❌ UID ou lecteur RFID manquant"}), 400
+        return jsonify({"message": " UID/RFID manq"}), 400
 
     try:
         with engine.connect() as conn:
@@ -108,7 +108,7 @@ def handle_event():
                     # 🚨 Si RFID2 est utilisé pour un UID non autorisé, ne rien faire
                     if rfid_reader == 2:
                         print("❌ UID non autorisé détecté sur RFID2, aucune action effectuée")
-                        return jsonify({"message": "❌ UID non autorisé, aucune action effectuée"}), 403
+                        return jsonify({"message": " Acces refuse"}), 403
                 else:
                     # 🚀 Étape 2 : Vérifier si l'UID existe dans la table Badge
                     badge_query = text("SELECT id_badge, id_employe FROM Badge WHERE uid_badge = :uid")
@@ -152,32 +152,93 @@ def handle_event():
 
                 # 🚀 Étape 5 : Gérer l'insertion ou la mise à jour selon le lecteur RFID
                 if rfid_reader == 1:
-                    # RFID1 : Insertion avec id_emplacement anonyme et date_entree = NULL
-                    insert_query = text("""
-                        INSERT INTO Evenement (id_employe, id_badge, id_equipe, id_poste, id_alerte, id_emplacement)
-                        VALUES (:id_employe, 
-                                :id_badge, 
-                                :id_equipe, 
-                                :id_poste, 
-                                :id_alerte, 
-                                :id_emplacement)
-                    """)
-                    conn.execute(insert_query, {
-                        "id_employe": id_employe,
-                        "id_badge": id_badge,
-                        "id_equipe": id_equipe_anonyme,  # Utiliser l'ID d'équipe anonyme
-                        "id_poste": id_poste,
-                        "id_alerte": id_alerte,
-                        "id_emplacement": id_emplacement_anonyme  # Utiliser l'ID d'emplacement anonyme
-                    })
-                    print("✅ Insertion dans la table Evenement réussie (RFID1)")  # Log de l'insertion réussie
+                    # RFID1 : Insertion ou mise à jour avec id_emplacement anonyme et date_entree = NULL
+                    if id_employe:  # Seulement pour les employés non anonymes
+                        # Vérifier si un enregistrement existe déjà pour cet employé
+                        existing_event_query = text("""
+                            SELECT id_event, date_entree, date_sortie FROM Evenement
+                            WHERE id_employe = :id_employe
+                        """)
+                        existing_event = conn.execute(existing_event_query, {"id_employe": id_employe}).fetchone()
+
+                        if existing_event:
+                            id_event, date_entree, date_sortie = existing_event
+
+                            if date_entree is not None and date_sortie is not None:
+                                # L'employé a déjà un enregistrement complet (entrée et sortie), ne rien faire
+                                print("✅ L'employé a déjà un enregistrement complet (entrée et sortie), aucune action nécessaire")
+                                return jsonify({"message": "✅ Enreg. complet"}), 200
+                            elif date_entree is not None and date_sortie is None:
+                                # L'employé a déjà une entrée en cours, refuser une nouvelle entrée
+                                print("❌ L'employé a déjà une entrée en cours (date_entree non nulle et date_sortie nulle)")
+                                return jsonify({"message": " Entree en cours"}), 400
+                            else:
+                                # Mettre à jour l'enregistrement existant
+                                update_query = text("""
+                                    UPDATE Evenement
+                                    SET date_entree = NULL,
+                                        id_emplacement = :id_emplacement,
+                                        id_equipe = :id_equipe,
+                                        id_poste = :id_poste,
+                                        id_alerte = :id_alerte
+                                    WHERE id_event = :id_event
+                                """)
+                                conn.execute(update_query, {
+                                    "id_emplacement": id_emplacement_anonyme,
+                                    "id_equipe": id_equipe_anonyme,
+                                    "id_poste": id_poste,
+                                    "id_alerte": id_alerte,
+                                    "id_event": id_event
+                                })
+                                print("✅ Mise à jour de l'enregistrement existant pour une nouvelle entrée")
+                        else:
+                            # Aucun enregistrement existant, insérer un nouvel enregistrement
+                            insert_query = text("""
+                                INSERT INTO Evenement (id_employe, id_badge, id_equipe, id_poste, id_alerte, id_emplacement)
+                                VALUES (:id_employe, 
+                                        :id_badge, 
+                                        :id_equipe, 
+                                        :id_poste, 
+                                        :id_alerte, 
+                                        :id_emplacement)
+                            """)
+                            conn.execute(insert_query, {
+                                "id_employe": id_employe,
+                                "id_badge": id_badge,
+                                "id_equipe": id_equipe_anonyme,
+                                "id_poste": id_poste,
+                                "id_alerte": id_alerte,
+                                "id_emplacement": id_emplacement_anonyme
+                            })
+                            print("✅ Insertion dans la table Evenement réussie (RFID1)")
+                    else:
+                        # Pour les employés anonymes, insérer un nouvel enregistrement sans vérification
+                        insert_query = text("""
+                            INSERT INTO Evenement (id_employe, id_badge, id_equipe, id_poste, id_alerte, id_emplacement)
+                            VALUES (:id_employe, 
+                                    :id_badge, 
+                                    :id_equipe, 
+                                    :id_poste, 
+                                    :id_alerte, 
+                                    :id_emplacement)
+                        """)
+                        conn.execute(insert_query, {
+                            "id_employe": id_employe,
+                            "id_badge": id_badge,
+                            "id_equipe": id_equipe_anonyme,
+                            "id_poste": id_poste,
+                            "id_alerte": id_alerte,
+                            "id_emplacement": id_emplacement_anonyme
+                        })
+                        print("✅ Insertion dans la table Evenement réussie (RFID1) pour un employé anonyme")
+
                 elif rfid_reader == 2:
                     # RFID2 : Mise à jour de date_entree, id_emplacement, id_equipe et id_poste
                     if id_alerte == conn.execute(
                         text("SELECT id_alerte FROM Alerte WHERE message = :message"),
                         {"message": "Accès accordé - Bienvenue !"}
                     ).scalar():  # Seulement si l'accès est autorisé
-                        print("✅ Accès autorisé, vérification de l'équipe et du retard...")
+                        print("✅ Accès autorisé, vérification de l'équipe et de la compétence...")
 
                         # Vérifier si l'employé a déjà badgé dans RFID2 (pour mettre à jour la date_sortie)
                         badge_rfid2_query = text("""
@@ -187,37 +248,51 @@ def handle_event():
                         badge_rfid2_result = conn.execute(badge_rfid2_query, {"id_badge": id_badge}).fetchone()
 
                         if badge_rfid2_result:
-                            # Récupérer la compétence de l'employé
-                            competence_employe_query = text("""
-                                SELECT competence FROM Employe WHERE id_employe = :id_employe
-                            """)
-                            competence_employe = conn.execute(competence_employe_query, {"id_employe": id_employe}).scalar()
+                            # Récupérer l'équipe de l'employé
+                            equipe_query = text("SELECT id_equipe FROM Employe WHERE id_employe = :id_employe")
+                            id_equipe_employe = conn.execute(equipe_query, {"id_employe": id_employe}).scalar()
+                            print(f"ID équipe employé : {id_equipe_employe}")
 
-                            # Récupérer la compétence associée à l'id_poste fixé sur RFID2
-                            id_poste_rfid2 = 2  # ID du poste fixé sur RFID2
-                            competence_poste_query = text("""
-                                SELECT competence FROM Poste_Competence WHERE id_poste = :id_poste
-                            """)
-                            competence_poste = conn.execute(competence_poste_query, {"id_poste": id_poste_rfid2}).scalar()
+                            # Vérifier si l'employé est dans son intervalle d'équipe
+                            heure_actuelle = datetime.now().time()
+                            if est_dans_intervalle_equipe(heure_actuelle, id_equipe_employe):
+                                print("✅ L'employé est dans son intervalle d'équipe")
 
-                            # Vérifier si la compétence de l'employé correspond à celle du poste RFID2
-                            if competence_employe.strip().lower() == competence_poste.strip().lower():
-                                # Si la compétence correspond, mettre à jour la date_sortie
-                                update_sortie_query = text("""
-                                    UPDATE Evenement
-                                    SET date_sortie = :date_sortie
-                                    WHERE id_badge = :id_badge AND date_entree IS NOT NULL AND date_sortie IS NULL
+                                # Récupérer la compétence de l'employé
+                                competence_employe_query = text("""
+                                    SELECT competence FROM Employe WHERE id_employe = :id_employe
                                 """)
-                                conn.execute(update_sortie_query, {
-                                    "date_sortie": datetime.now(),
-                                    "id_badge": id_badge
-                                })
-                                print("✅ Date de sortie mise à jour dans la table Evenement")
-                                return jsonify({"message": "✅ Date de sortie mise à jour avec succès"}), 201
+                                competence_employe = conn.execute(competence_employe_query, {"id_employe": id_employe}).scalar()
+
+                                # Récupérer la compétence associée à l'id_poste fixé sur RFID2
+                                id_poste_rfid2 = 2  # ID du poste fixé sur RFID2
+                                competence_poste_query = text("""
+                                    SELECT competence FROM Poste_Competence WHERE id_poste = :id_poste
+                                """)
+                                competence_poste = conn.execute(competence_poste_query, {"id_poste": id_poste_rfid2}).scalar()
+
+                                # Vérifier si la compétence de l'employé correspond à celle du poste RFID2
+                                if competence_employe.strip().lower() == competence_poste.strip().lower():
+                                    # Si la compétence correspond, mettre à jour la date_sortie
+                                    update_sortie_query = text("""
+                                        UPDATE Evenement
+                                        SET date_sortie = :date_sortie
+                                        WHERE id_badge = :id_badge AND date_entree IS NOT NULL AND date_sortie IS NULL
+                                    """)
+                                    conn.execute(update_sortie_query, {
+                                        "date_sortie": datetime.now(),
+                                        "id_badge": id_badge
+                                    })
+                                    print("✅ Date de sortie mise à jour dans la table Evenement")
+                                    return jsonify({"message": "Sortie OK"}), 201
+                                else:
+                                    # Si la compétence ne correspond pas, refuser l'accès
+                                    print("❌ Compétence non correspondante, date_sortie non mise à jour")
+                                    return jsonify({"message": "Competence invalide"}), 403
                             else:
-                                # Si la compétence ne correspond pas, renvoyer une erreur
-                                print("❌ Compétence non correspondante, date_sortie non mise à jour")
-                                return jsonify({"message": "❌ Compétence non correspondante, date_sortie non mise à jour"}), 403
+                                # Si l'employé n'est pas dans son intervalle d'équipe, refuser l'accès
+                                print("❌ L'employé n'est pas dans son intervalle d'équipe")
+                                return jsonify({"message": "Hors equipe"}), 403
 
                         # Vérifier si l'employé a déjà badgé dans RFID1
                         badge_rfid1_query = text("""
@@ -233,94 +308,72 @@ def handle_event():
                                 {"message": "Accès refusé - Badgeage RFID1 manquant"}
                             ).scalar()
                             print("❌ Accès refusé : l'employé n'a pas badgé dans RFID1")
-                            return jsonify({"message": "❌ Accès refusé : vous devez d'abord badger dans RFID1"}), 403
+                            return jsonify({"message": "RFID1 manquant"}), 403
 
                         # Récupérer l'équipe de l'employé
                         equipe_query = text("SELECT id_equipe FROM Employe WHERE id_employe = :id_employe")
                         id_equipe_employe = conn.execute(equipe_query, {"id_employe": id_employe}).scalar()
                         print(f"ID équipe employé : {id_equipe_employe}")
 
-                        # Récupérer la compétence de l'employé
-                        competence_query = text("SELECT competence FROM Employe WHERE id_employe = :id_employe")
-                        competence_employe = conn.execute(competence_query, {"id_employe": id_employe}).scalar()
-                        print(f"Compétence de l'employé : {competence_employe}")
-
-                        # Récupérer la compétence associée à l'id_poste 2
-                        competence_poste_2_query = text("SELECT competence FROM Poste_Competence WHERE id_poste = 2")
-                        competence_poste_2 = conn.execute(competence_poste_2_query).scalar()
-                        print(f"Compétence requise pour id_poste 2 : {competence_poste_2}")
-
-                        # Vérifier si la compétence de l'employé correspond à celle de l'id_poste 2
-                        if competence_employe.strip().lower() == competence_poste_2.strip().lower():
-                            id_poste = 2  # Mettre à jour l'id_poste à 2
-                            print("✅ Compétence correspondante, id_poste mis à jour à 2")
-                        else:
-                            id_poste = 6  # Conserver l'id_poste à 6 (Poste Anonyme)
-                            print("❌ Compétence non correspondante, id_poste reste à 6")
-
                         # Vérifier si l'employé est dans son intervalle d'équipe
                         heure_actuelle = datetime.now().time()
                         if est_dans_intervalle_equipe(heure_actuelle, id_equipe_employe):
-                            print("✅ Employé dans son équipe, vérification du retard...")
+                            print("✅ L'employé est dans son intervalle d'équipe")
 
-                            # Calculer le retard
-                            retard = calculer_retard(heure_actuelle, id_equipe_employe)
-                            print(f"Retard calculé : {retard}")
+                            # Récupérer la compétence de l'employé
+                            competence_query = text("SELECT competence FROM Employe WHERE id_employe = :id_employe")
+                            competence_employe = conn.execute(competence_query, {"id_employe": id_employe}).scalar()
+                            print(f"Compétence de l'employé : {competence_employe}")
 
-                            if retard > timedelta(minutes=15):
-                                # Récupérer l'ID de l'alerte "Retard de plus de 15 minutes"
-                                id_alerte = conn.execute(
-                                    text("SELECT id_alerte FROM Alerte WHERE message = :message"),
-                                    {"message": "Retard de plus de 15 minutes"}
-                                ).scalar()
-                                print("⚠️ Employé en retard de plus de 15 minutes")
+                            # Récupérer la compétence associée à l'id_poste 2
+                            competence_poste_2_query = text("SELECT competence FROM Poste_Competence WHERE id_poste = 2")
+                            competence_poste_2 = conn.execute(competence_poste_2_query).scalar()
+                            print(f"Compétence requise pour id_poste 2 : {competence_poste_2}")
+
+                            # Vérifier si la compétence de l'employé correspond à celle de l'id_poste 2
+                            if competence_employe.strip().lower() == competence_poste_2.strip().lower():
+                                # Si la compétence correspond et que l'employé est dans son équipe, mettre à jour la date_entree
+                                update_query = text("""
+                                    UPDATE Evenement
+                                    SET date_entree = :date_entree,
+                                        id_emplacement = :id_emplacement,
+                                        id_equipe = :id_equipe,
+                                        id_poste = :id_poste,
+                                        id_alerte = :id_alerte
+                                    WHERE id_badge = :id_badge AND date_entree IS NULL
+                                """)
+                                conn.execute(update_query, {
+                                    "date_entree": datetime.now(),
+                                    "id_emplacement": ID_EMPLACEMENT_RFID2,  # Utiliser l'ID d'emplacement fixe
+                                    "id_equipe": id_equipe_employe,  # Utiliser l'ID d'équipe de l'employé
+                                    "id_poste": 2,  # Mettre à jour l'id_poste à 2 (RFID2)
+                                    "id_alerte": id_alerte,  # Mettre à jour l'alerte (accès accordé)
+                                    "id_badge": id_badge
+                                })
+                                print(f"✅ Mise à jour de la table Evenement avec id_poste = 2 et id_alerte = {id_alerte}")
+                                return jsonify({"message": "Entree OK"}), 201
                             else:
-                                # Récupérer l'ID de l'alerte "Accès accordé - Bienvenue !"
-                                id_alerte = conn.execute(
-                                    text("SELECT id_alerte FROM Alerte WHERE message = :message"),
-                                    {"message": "Accès accordé - Bienvenue !"}
-                                ).scalar()
-                                print(f"✅ Employé dans son équipe, accès accordé")
+                                # Si la compétence ne correspond pas, refuser l'accès
+                                print("❌ Compétence non correspondante, date_entree non enregistrée")
+                                return jsonify({"message": "Competence invalide"}), 403
                         else:
-                            # Récupérer l'ID de l'alerte "Pas dans l'équipe appropriée"
-                            id_alerte = conn.execute(
-                                text("SELECT id_alerte FROM Alerte WHERE message = :message"),
-                                {"message": "Pas dans l'équipe appropriée"}
-                            ).scalar()
-                            print("❌ Employé pas dans l'équipe appropriée")
-
-                        # Mettre à jour la table Evenement
-                        update_query = text("""
-                            UPDATE Evenement
-                            SET date_entree = :date_entree,
-                                id_emplacement = :id_emplacement,
-                                id_equipe = :id_equipe,
-                                id_poste = :id_poste,
-                                id_alerte = :id_alerte
-                            WHERE id_badge = :id_badge AND date_entree IS NULL
-                        """)
-                        conn.execute(update_query, {
-                            "date_entree": datetime.now(),
-                            "id_emplacement": ID_EMPLACEMENT_RFID2,  # Utiliser l'ID d'emplacement fixe
-                            "id_equipe": id_equipe_employe,  # Utiliser l'ID d'équipe de l'employé
-                            "id_poste": id_poste,  # Mettre à jour l'id_poste (2 ou 6)
-                            "id_alerte": id_alerte,  # Mettre à jour l'alerte (retard ou accès accordé)
-                            "id_badge": id_badge
-                        })
-                        print(f"✅ Mise à jour de la table Evenement avec id_poste = {id_poste} et id_alerte = {id_alerte}")  # Log de la mise à jour réussie
+                            # Si l'employé n'est pas dans son intervalle d'équipe, refuser l'accès
+                            print("❌ L'employé n'est pas dans son intervalle d'équipe")
+                            return jsonify({"message": "Hors equipe"}), 403
                     else:
                         print("❌ Badge non autorisé, mise à jour ignorée")
+                        return jsonify({"message": "Acces refuse"}), 403
 
                 # Vérifiez l'insertion ou la mise à jour
                 verification_query = text("SELECT * FROM Evenement WHERE id_badge = :id_badge")
                 verification_result = conn.execute(verification_query, {"id_badge": id_badge}).fetchone()
                 print(f"Vérification de l'insertion/mise à jour : {verification_result}")  # Log de la vérification
 
-                return jsonify({"message": "✅ Événement enregistré/mis à jour avec succès"}), 201
+                return jsonify({"message": "Enreg reussi"}), 201
 
     except Exception as e:
         print(f"❌ Erreur SQL : {str(e)}")  # Log des erreurs SQL
-        return jsonify({"message": f"❌ Erreur SQL : {str(e)}"}), 500
+        return jsonify({"message": "Erreur SQL"}), 500
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000, debug=True)
