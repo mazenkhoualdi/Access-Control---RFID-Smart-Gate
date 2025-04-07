@@ -167,7 +167,7 @@ def handle_event():
                             if date_entree is not None and date_sortie is not None:
                                 # L'employé a déjà un enregistrement complet (entrée et sortie), ne rien faire
                                 print("✅ L'employé a déjà un enregistrement complet (entrée et sortie), aucune action nécessaire")
-                                return jsonify({"message": "✅ Enreg. complet"}), 200
+                                return jsonify({"message": "Enreg. complet"}), 200
                             elif date_entree is not None and date_sortie is None:
                                 # L'employé a déjà une entrée en cours, refuser une nouvelle entrée
                                 print("❌ L'employé a déjà une entrée en cours (date_entree non nulle et date_sortie nulle)")
