@@ -1,14 +1,15 @@
 USE SAGEMCOM_DB;
-
 -- Table des équipes --
 CREATE TABLE Equipe (
     id_equipe INT PRIMARY KEY IDENTITY(1,1),
-    nom_equipe VARCHAR(50) NOT NULL UNIQUE
+    nom_equipe VARCHAR(50) NOT NULL UNIQUE -- Le `UNIQUE` est maintenant correctement placé à la fin
 );
+
+   
 
 -- Table des employés --
 CREATE TABLE Employe (
-    id_employe INT PRIMARY KEY IDENTITY(1,1),
+    id_employe VARCHAR(50) PRIMARY KEY,  -- Utilisation de VARCHAR au lieu de INT
     nom_employe VARCHAR(50) NOT NULL,
     prenom_employe VARCHAR(50) NOT NULL,
     id_equipe INT NOT NULL,
@@ -16,28 +17,23 @@ CREATE TABLE Employe (
     FOREIGN KEY (id_equipe) REFERENCES Equipe(id_equipe)
 );
 
--- Table des badges (pour une meilleure gestion) --
-CREATE TABLE Badge (
-    id_badge INT PRIMARY KEY IDENTITY(1,1),
-    uid_badge VARCHAR(50) UNIQUE NOT NULL,
-    id_employe INT NULL, -- NULL si badge non attribué
-    FOREIGN KEY (id_employe) REFERENCES Employe(id_employe) ON DELETE SET NULL
-);
 
 -- Table des postes et compétences --
 CREATE TABLE Poste_Competence (
     id_poste INT PRIMARY KEY IDENTITY(1,1),
     nom_poste VARCHAR(50) NOT NULL,
     competence VARCHAR(50) NOT NULL,
-    etoiles INT NOT NULL CHECK (etoiles BETWEEN 1 AND 5)
+    etoiles INT NOT NULL CHECK (etoiles BETWEEN 1 AND 5),
+
+
 );
 
 -- Table des alertes --
 CREATE TABLE Alerte (
     id_alerte INT PRIMARY KEY IDENTITY(1,1),
-    message VARCHAR(255) NOT NULL
+    message TEXT NOT NULL
 );
-
+ALTER TABLE Alerte ALTER COLUMN message NVARCHAR(MAX);
 -- Table des emplacements --
 CREATE TABLE Emplacement (
     id_emplacement INT PRIMARY KEY IDENTITY(1,1),
@@ -48,79 +44,78 @@ CREATE TABLE Emplacement (
 -- Table des événements --
 CREATE TABLE Evenement (
     id_event INT PRIMARY KEY IDENTITY(1,1),
-    id_employe INT NULL, -- NULL si badge inconnu
-    id_badge INT NOT NULL, -- On stocke l'id_badge ici
-    id_equipe INT NOT NULL,
+    id_employe VARCHAR(50) NOT NULL, 
     id_poste INT NOT NULL,
-    id_alerte INT NULL, -- Peut être NULL si aucun problème
+    id_alerte INT NOT NULL, 
     id_emplacement INT NOT NULL,
-    date_entree DATETIME  NULL,
+    date_entree DATETIME NOT NULL,
     date_sortie DATETIME NULL,
     -- Clés étrangères
-    FOREIGN KEY (id_employe) REFERENCES Employe(id_employe) ON DELETE SET NULL,
-    FOREIGN KEY (id_badge) REFERENCES Badge(id_badge),
-    FOREIGN KEY (id_equipe) REFERENCES Equipe(id_equipe),
+    FOREIGN KEY (id_employe) REFERENCES Employe(id_employe) ,
     FOREIGN KEY (id_poste) REFERENCES Poste_Competence(id_poste),
     FOREIGN KEY (id_alerte) REFERENCES Alerte(id_alerte),
     FOREIGN KEY (id_emplacement) REFERENCES Emplacement(id_emplacement)
 );
--- Insérer des équipes
+ALTER TABLE Evenement
+ALTER COLUMN id_employe VARCHAR(50) NOT NULL;
+
+ALTER TABLE Evenement
+ALTER COLUMN id_alerte INT NOT NULL;
+
 -- Insérer des équipes
 INSERT INTO Equipe (nom_equipe)
-VALUES 
+VALUES
     ('Équipe 1 - 6h à 14h'),  -- Première équipe (6h-14h)
     ('Équipe 2 - 14h à 22h'), -- Deuxième équipe (14h-22h)
-    ('Équipe 3 - 22h à 6h');  -- Troisième équipe (22h-6h)
+    ('Équipe 3 - 22h à 6h'), -- Troisième équipe (22h-6h)
+('Equipe_anonyme');
 
-	-- Insérer des employés
-INSERT INTO Employe (nom_employe, prenom_employe, id_equipe, competence)
-VALUES 
-    ('Doe', 'John', 1, 'Développement logiciel'), 
-    ('Smith', 'Jane', 2, 'Maintenance système'),
-    ('Brown', 'Alex', 3, 'Gestion de projet'),
-    ('Taylor', 'Sam', 1, 'Gestion de réseau'),
-    ('Miller', 'Chris', 2, 'Maintenance système');  -- Employé pour la deuxième équipe
-	-- Insérer des badges attribués aux employés
-INSERT INTO Badge (uid_badge, id_employe)
-VALUES 
-    ('63F5B428', 1),  -- Badge 1 attribué à l'employé 1
-    ('C5D5963F', 2),  -- Badge 2 attribué à l'employé 2
-    ('4A19044B', 3),  -- Badge 3 attribué à l'employé 3
-    ('F1A3707B', 4),  -- Badge 4 attribué à l'employé 4
-    ('B38838DA', 7);  -- Badge anonyme, pas d'employé attribué (id_employe NULL)
--- Insérer des postes avec compétences
+-- Insérer des employés
+-- Comme `id_employe` est une clé primaire avec `IDENTITY`, il n'est pas nécessaire de spécifier une valeur pour cette colonne.
+-- Les IDs seront générés automatiquement.
+
+INSERT INTO Employe (id_employe, nom_employe, prenom_employe, id_equipe, competence)
+VALUES
+    ('63F5B428', 'Doe', 'John', 1, 'Développeur'),
+    ('C5D5963F', 'Smith', 'Jane', 2, 'Technicien'),
+    ('4A19044B', 'Brown', 'Alex', 3, 'Manager'),
+    ('F1A3707B', 'Taylor', 'Sam', 1, 'Administrateur'),
+    ('B38838DA', 'Miller', 'Chris', 2, 'Technicien'),
+('ANONYME0','anonyme','anonyme',4,'inconnue');
+
+
+-- Insérer des postes et compétences
 INSERT INTO Poste_Competence (nom_poste, competence, etoiles)
-VALUES 
+VALUES
     ('Développeur', 'Développement logiciel', 5),   -- Poste de développeur avec compétence "Développement logiciel" et 5 étoiles
     ('Technicien', 'Maintenance système', 4),       -- Poste de technicien avec compétence "Maintenance système" et 4 étoiles
     ('Manager', 'Gestion de projet', 3),            -- Poste de manager avec compétence "Gestion de projet" et 3 étoiles
-    ('Administrateur', 'Gestion de réseau', 4);     -- Poste d'administrateur avec compétence "Gestion de réseau" et 4 étoiles
+    ('Administrateur', 'Gestion de réseau', 4),    -- Poste d'administrateur avec compétence "Gestion de réseau" et 4 étoiles
+('Post_anonyme','inconnue',1);
+
 -- Insérer des emplacements
 INSERT INTO Emplacement (nom_emplacement, type_emplacement)
-VALUES 
+VALUES
     ('Entrée principale', 'Accès à lentreprise'),
     ('Poste de travail A', 'Bureau'),
     ('Poste de travail B', 'Bureau'),
     ('Salle serveur', 'Salle technique');
--- Insérer des alertes dans la table Alerte
+
+-- Insérer des alertes
 INSERT INTO Alerte (message)
-VALUES 
-    ('Accès non autorisé - Badge invalide'),
-    ('Retard dentrée - Plus de 15 minutes'),
-    ('Compétence incorrecte pour ce poste'),
-    ('Emplacement incorrect pour léquipe'),
-    ('Badge non attribué à un employé valide'),
-    ('Accès accordé - Bienvenue !'),
-    ('Accès autorisé - Compétence validée');
+VALUES
+    ('Badge invalide'),
+    ('retard plus de 15 minutes'),
+    ('Competence incorrecte'),
+    ('Emplacement incorrect'),
+    ('Badge non attribue'),
+    ('Bienvenue !'),
+    ('Competence valide');
 
-
-
-	-- 🔹 Insérer une équipe anonyme
-INSERT INTO Equipe (nom_equipe) 
-VALUES ('Équipe Anonyme');
-INSERT INTO Employe (nom_employe, prenom_employe, id_equipe, competence)
-VALUES ('Anonyme', 'Employe', (SELECT id_equipe FROM Equipe WHERE nom_equipe = 'Équipe Anonyme'), 'Inconnu');
-INSERT INTO Poste_Competence (nom_poste, competence, etoiles)
-VALUES ('Poste Anonyme', 'Inconnu', 1);
-INSERT INTO Emplacement (nom_emplacement, type_emplacement)
-VALUES ('Emplacement Inconnu', 'Inconnu');
+-- Sélectionner les événements
+select * from equipe;
+select * from Poste_Competence
+select * from Employe
+select * from Alerte
+select * from Emplacement
+select * from Evenement

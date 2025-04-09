@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, DateTime, ForeignKey
+from sqlalchemy import Column,Integer ,String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm import declarative_base
 from connexion import engine
@@ -9,8 +9,7 @@ class Evenement(Base):
     __tablename__ = "Evenement"
     
     id_event = Column(Integer, primary_key=True)
-    id_employe = Column(Integer, ForeignKey('Employe.id_employe'), nullable=True)
-    id_badge = Column(Integer, ForeignKey('Badge.id_badge'), nullable=False)
+    id_employe = Column(String(50), ForeignKey('Employe.id_employe'), nullable=True)  # Modification ici (String(50) au lieu de Integer)
     id_equipe = Column(Integer, ForeignKey('Equipe.id_equipe'), nullable=False)
     id_poste = Column(Integer, ForeignKey('Poste_Competence.id_poste'), nullable=False)
     id_alerte = Column(Integer, ForeignKey('Alerte.id_alerte'), nullable=True)

@@ -1,0 +1,193 @@
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <SPI.h>
+#include <MFRC522.h>
+#include <ArduinoJson.h>
+
+#define SS_PIN_1 5     // SDA du premier lecteur RFID
+#define SS_PIN_2 15    // SDA du deuxième lecteur RFID
+#define RST_PIN 0      // RST commun aux deux lecteurs
+
+#define LED_ROUGE 25
+#define LED_VERTE 26
+#define LED_BLEU 27
+
+const char* ssid = "TOPNET_44D0";  
+const char* password = "Msmm717508";  
+const char* serverUrl = "http://192.168.1.12:5000/evenement";
+MFRC522 mfrc522_1(SS_PIN_1, RST_PIN);  // Premier lecteur RFID
+MFRC522 mfrc522_2(SS_PIN_2, RST_PIN);  // Deuxième lecteur RFID
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+void setup() {
+    Serial.begin(115200);
+    SPI.begin();
+
+    mfrc522_1.PCD_Init();
+    mfrc522_2.PCD_Init();
+
+    lcd.init();
+    lcd.backlight();
+
+    pinMode(LED_ROUGE, OUTPUT);
+    pinMode(LED_VERTE, OUTPUT);
+    pinMode(LED_BLEU, OUTPUT);
+    eteindreLED();
+
+    // Connexion WiFi
+    WiFi.begin(ssid, password);
+    Serial.print("Connexion au WiFi...");
+    lcd.setCursor(0, 0);
+    lcd.print("WiFi Connexion...");
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(1000);
+        Serial.print(".");
+    }
+    Serial.println("\n✅ WiFi connecté !");
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("WiFi Connecte!");
+    delay(2000);
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Attente carte...");
+    Serial.println("🔄 En attente d'une carte RFID...");
+}
+
+void eteindreLED() {
+    digitalWrite(LED_ROUGE, LOW);
+    digitalWrite(LED_VERTE, LOW);
+    digitalWrite(LED_BLEU, LOW);
+}
+
+void allumerLED(int rouge, int vert, int bleu) {
+    digitalWrite(LED_ROUGE, rouge);
+    digitalWrite(LED_VERTE, vert);
+    digitalWrite(LED_BLEU, bleu);
+}
+
+String lireRFID(MFRC522 &rfid) {
+    if (!rfid.PICC_IsNewCardPresent() || !rfid.PICC_ReadCardSerial()) {
+        return "";
+    }
+
+    String uid = "";
+    for (byte i = 0; i < rfid.uid.size; i++) {
+        if (rfid.uid.uidByte[i] < 0x10) uid += "0"; // Ajouter un zéro pour les valeurs < 0x10
+        uid += String(rfid.uid.uidByte[i], HEX);
+    }
+    uid.toUpperCase();
+    return uid;
+}
+
+void envoyerEvenement(String uid, int rfid_reader) {
+    // Vérification de la connexion WiFi
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("❌ WiFi déconnecté ! Tentative de reconnexion...");
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("Reconnexion WiFi...");
+        
+        WiFi.begin(ssid, password);
+        delay(5000);
+        
+        if (WiFi.status() != WL_CONNECTED) {
+            Serial.println("❌ Échec de la reconnexion WiFi");
+            lcd.clear();
+            lcd.setCursor(0, 0);
+            lcd.print("WiFi perdu");
+            allumerLED(LOW, LOW, HIGH); // LED bleue pour erreur réseau
+            delay(3000);
+            eteindreLED();
+            return;
+        }
+        Serial.println("✅ WiFi reconnecté !");
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("WiFi OK!");
+        delay(1000);
+    }
+
+    // Préparation de la requête HTTP
+    HTTPClient http;
+    http.begin(serverUrl);
+    http.addHeader("Content-Type", "application/json");
+
+    String jsonData = "{\"uid_badge\":\"" + uid + "\", \"rfid_reader\":" + String(rfid_reader) + "}";
+    Serial.println("Données envoyées : " + jsonData);
+
+    // Envoi de la requête
+    int httpResponseCode = http.POST(jsonData);
+    
+    if (httpResponseCode > 0) {
+        String response = http.getString();
+        Serial.println("Code réponse: " + String(httpResponseCode));
+        Serial.println("Réponse: " + response);
+
+        // Traitement de la réponse JSON
+        DynamicJsonDocument doc(1024);
+        deserializeJson(doc, response);
+        String message = doc["message"];
+        int idAlerte = doc["id_alerte"];
+
+        // Affichage sur LCD
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print(message);
+
+        // Gestion des LEDs
+        if (httpResponseCode == 200 || httpResponseCode == 201) {
+            // Cas des badges anonymes/invalides
+            if (idAlerte == 1) {
+                allumerLED(HIGH, LOW, LOW); // Rouge
+                Serial.println("Badge anonyme/invalide");
+            }
+            // Cas des accès autorisés (entrée/sortie)
+            else if ((rfid_reader == 1 && message == "Entree enregistree") || 
+                    (rfid_reader == 2 && message == "Acces autorise") ||
+                    message == "Sortie enregistree") {
+                allumerLED(LOW, HIGH, LOW); // Vert
+                Serial.println("Accès autorisé !");
+            }
+            // Autres cas (normalement refusés)
+            else {
+                allumerLED(HIGH, LOW, LOW); // Rouge
+                Serial.println("Accès refusé");
+            }
+        } else {
+            allumerLED(HIGH, LOW, LOW); // Rouge pour erreur serveur
+            Serial.println("Erreur serveur");
+        }
+    } else {
+        Serial.println("❌ Erreur d'envoi");
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("Erreur réseau");
+        allumerLED(LOW, LOW, HIGH); // Bleu pour erreur réseau
+    }
+
+    // Nettoyage
+    http.end();
+    delay(3000); // Temporisation pour éviter les scans multiples
+    eteindreLED();
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Attente carte...");
+}
+void loop() {
+    String uid1 = lireRFID(mfrc522_1);
+    if (uid1 != "") {
+        Serial.println("🔹 RFID 1 détecté : " + uid1);
+        envoyerEvenement(uid1, 1);
+        return;
+    }
+
+    String uid2 = lireRFID(mfrc522_2);
+    if (uid2 != "") {
+        Serial.println("🔹 RFID 2 détecté : " + uid2);
+        envoyerEvenement(uid2, 2);
+        return;
+    }
+}
