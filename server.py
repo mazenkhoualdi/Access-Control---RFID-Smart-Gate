@@ -160,7 +160,85 @@ def handle_badge_special_ou_anonyme(conn, uid_badge):
         "id_alerte": 1  # Badge invalide
     }), 201
 
+def verifier_un_seul_enregistrement(conn, id_employe):
+    """Vérifie qu'un employé n'a qu'un seul enregistrement complet par jour sauf pour badges spéciaux/anonymes"""
+    if est_badge_anonyme_ou_special(conn, id_employe):
+        return True  # Les badges spéciaux/anonymes peuvent avoir plusieurs enregistrements
+    
+    today = datetime.now().date()
+    count = conn.execute(
+        text("""
+            SELECT COUNT(*) FROM Evenement 
+            WHERE id_employe = :id_employe 
+            AND date_sortie IS NOT NULL
+            AND CAST(date_entree AS DATE) = :today
+        """),
+        {"id_employe": id_employe, "today": today}
+    ).scalar()
+    return count == 0
+
 def handle_rfid1(conn, uid_badge):
+    employe_info = conn.execute(
+        text("SELECT id_employe, nom_employe, id_equipe FROM Employe WHERE id_employe = :uid"),
+        {"uid": uid_badge}
+    ).fetchone()
+
+    if employe_info:
+        id_employe, nom_employe, id_equipe = employe_info
+        alerte_id = get_alert_id(conn, "Bienvenue !") or 6
+        
+        if not verifier_un_seul_enregistrement(conn, id_employe):
+            return jsonify({
+                "message": "Deja scanne aujourd'hui",
+                "id_alerte": alerte_id
+            }), 400
+    else:
+        # Cas normalement déjà géré par est_badge_anonyme_ou_special
+        return handle_badge_special_ou_anonyme(conn, uid_badge)
+
+    # Vérifier s'il y a une entrée non fermée aujourd'hui
+    today = datetime.now().date()
+    event = conn.execute(
+        text("""
+            SELECT id_event FROM Evenement 
+            WHERE id_employe = :id 
+            AND date_sortie IS NULL
+            AND CAST(date_entree AS DATE) = :today
+        """),
+        {"id": id_employe, "today": today}
+    ).fetchone()
+
+    if event:
+        conn.execute(
+            text("UPDATE Evenement SET date_sortie = :now WHERE id_event = :id"),
+            {"now": datetime.now(), "id": event[0]}
+        )
+        return jsonify({"message": "Sortie enregistree"}), 200
+    else:
+        id_poste = get_id_poste(conn, 'Post_anonyme', ID_POSTE_ANONYME)
+        id_emplacement = conn.execute(
+            text("SELECT id_emplacement FROM Emplacement WHERE nom_emplacement = 'Entrée principale'")
+        ).scalar()
+
+        conn.execute(
+            text("""
+                INSERT INTO Evenement (
+                    id_employe, id_poste, id_alerte, 
+                    id_emplacement, date_entree
+                ) VALUES (
+                    :id, :poste, :alerte, 
+                    :emplacement, :now
+                )
+            """),
+            {
+                "id": id_employe,
+                "poste": id_poste,
+                "alerte": alerte_id,
+                "emplacement": id_emplacement,
+                "now": datetime.now()
+            }
+        )
+        return jsonify({"message": "Entree enregistree"}), 201
     employe_info = conn.execute(
         text("SELECT id_employe, nom_employe, id_equipe FROM Employe WHERE id_employe = :uid"),
         {"uid": uid_badge}
